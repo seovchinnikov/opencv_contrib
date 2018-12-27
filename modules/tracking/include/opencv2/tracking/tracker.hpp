@@ -1515,6 +1515,8 @@ public:
     float scale_step;
 
     float psr_threshold; //!< we lost the target, if the psr is lower than this.
+
+    float correct_estimation_rate;
   };
 
   

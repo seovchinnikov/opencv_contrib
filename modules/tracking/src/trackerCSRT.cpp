@@ -521,9 +521,12 @@ bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBox)
 
 bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBox)
 {
-    object_center.x = boundingBox.x + boundingBox.width/2.;
-    object_center.y = boundingBox.y + boundingBox.height/2.;
-    current_scale_factor = 2.0f * (object_center.x - boundingBox.x) / original_target_size.width;
+    object_center.x = params.correct_estimation_rate*(boundingBox.x + boundingBox.width/2.) +
+      (1-params.correct_estimation_rate)*object_center.x;
+    object_center.y = params.correct_estimation_rate*(boundingBox.y + boundingBox.height/2.) +
+      (1-params.correct_estimation_rate)*object_center.y;
+    current_scale_factor = params.correct_estimation_rate*(2.0f * (object_center.x - boundingBox.x) / original_target_size.width) 
+      + (1-params.correct_estimation_rate)*current_scale_factor;
     if (object_center.x < 0 && object_center.y < 0)
         return false;
 
@@ -711,6 +714,7 @@ TrackerCSRT::Params::Params()
     background_ratio = 2;
     histogram_lr = 0.04f;
     psr_threshold = 0.035f;
+    correct_estimation_rate = 0.5;
 }
 
 void TrackerCSRT::Params::read(const FileNode& fn)
@@ -770,6 +774,8 @@ void TrackerCSRT::Params::read(const FileNode& fn)
         fn["histogram_lr"] >> histogram_lr;
     if(!fn["psr_threshold"].empty())
         fn["psr_threshold"] >> psr_threshold;
+    if(!fn["correct_estimation_rate"].empty())
+        fn["correct_estimation_rate"] >> correct_estimation_rate;
     CV_Assert(number_of_scales % 2 == 1);
     CV_Assert(use_gray || use_color_names || use_hog || use_rgb);
 }
@@ -802,5 +808,7 @@ void TrackerCSRT::Params::write(FileStorage& fs) const
     fs << "background_ratio" << background_ratio;
     fs << "histogram_lr" << histogram_lr;
     fs << "psr_threshold" << psr_threshold;
+    fs << "correct_estimation_rate" << correct_estimation_rate;
+	
 }
 } /* namespace cv */
