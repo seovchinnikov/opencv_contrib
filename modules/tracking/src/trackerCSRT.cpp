@@ -30,6 +30,9 @@ public:
     TrackerCSRTImpl(const TrackerCSRT::Params &parameters = TrackerCSRT::Params());
     void read(const FileNode& fn) CV_OVERRIDE;
     void write(FileStorage& fs) const CV_OVERRIDE;
+    bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) CV_OVERRIDE;
+    bool updateEstimation( InputArray image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut) CV_OVERRIDE;
+    bool updateOnly( InputArray image) CV_OVERRIDE;
 
 protected:
     TrackerCSRT::Params params;
@@ -48,7 +51,10 @@ protected:
             const Size2f &template_size, const Size &target_size, float scale_factor);
     Point2f estimate_new_position(const Mat &image);
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
-
+    
+    bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
+    bool updateEstimationImpl(const Mat &image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut);
+    bool updateOnlyImpl(const Mat &image);
 private:
     bool check_mask_area(const Mat &mat, const double obj_area);
     float current_scale_factor;
@@ -471,6 +477,28 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
+    bool res_estimate = estimateOnlyImpl(image, boundingBox);
+    if(!res_estimate){
+        return false;
+    }
+	
+    //update tracker
+    return updateOnlyImpl(image);
+}
+
+bool TrackerCSRTImpl::estimateOnly(InputArray image_, Rect2d& boundingBox)
+{
+    return estimateOnlyImpl(image_.getMat(), boundingBox);
+}
+
+bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
+{
+    Mat image;
+    if(image_.channels() == 1)    //treat gray image as color image
+        cvtColor(image_, image, COLOR_GRAY2BGR);
+    else
+        image = image_;
+
     object_center = estimate_new_position(image);
     if (object_center.x < 0 && object_center.y < 0)
         return false;
@@ -481,7 +509,52 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
     bounding_box.width = current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
+	
+    boundingBox = bounding_box;
+    return true;
+}
 
+bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut)
+{
+    return updateEstimationImpl(image_.getMat(), boundingBoxIn, boundingBoxOut);
+}
+
+bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut)
+{
+    object_center.x = params.correct_estimation_rate*(boundingBoxIn.x + boundingBoxIn.width/2.) +
+      (1-params.correct_estimation_rate)*object_center.x;
+    object_center.y = params.correct_estimation_rate*(boundingBoxIn.y + boundingBoxIn.height/2.) +
+      (1-params.correct_estimation_rate)*object_center.y;
+
+    current_scale_factor = params.correct_estimation_rate*
+      (boundingBoxIn.width / original_target_size.width / 2. + boundingBoxIn.height / original_target_size.height / 2.)
+      + (1-params.correct_estimation_rate)*current_scale_factor;
+
+    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
+    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.height = current_scale_factor * original_target_size.height;
+
+    boundingBoxOut = bounding_box;
+    if (object_center.x < 0 && object_center.y < 0)
+        return false;
+
+    return true;
+}
+
+bool TrackerCSRTImpl::updateOnly(InputArray image_)
+{
+    return updateOnlyImpl(image_.getMat());
+}
+
+bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
+{
+    Mat image;
+    if(image_.channels() == 1)    //treat gray image as color image
+        cvtColor(image_, image, COLOR_GRAY2BGR);
+    else
+        image = image_;
+	
     //update tracker
     if(params.use_segmentation) {
         Mat hsv_img = bgr2hsv(image);
@@ -499,9 +572,9 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     }
     update_csr_filter(image, filter_mask);
     dsst.update(image, object_center);
-    boundingBox = bounding_box;
     return true;
 }
+
 
 // *********************************************************************
 // *                        Init API function                          *
@@ -650,6 +723,7 @@ TrackerCSRT::Params::Params()
     background_ratio = 2;
     histogram_lr = 0.04f;
     psr_threshold = 0.035f;
+    correct_estimation_rate = 0.5;
 }
 
 void TrackerCSRT::Params::read(const FileNode& fn)
@@ -709,6 +783,8 @@ void TrackerCSRT::Params::read(const FileNode& fn)
         fn["histogram_lr"] >> histogram_lr;
     if(!fn["psr_threshold"].empty())
         fn["psr_threshold"] >> psr_threshold;
+    if(!fn["correct_estimation_rate"].empty())
+        fn["correct_estimation_rate"] >> correct_estimation_rate;
     CV_Assert(number_of_scales % 2 == 1);
     CV_Assert(use_gray || use_color_names || use_hog || use_rgb);
 }
@@ -741,5 +817,7 @@ void TrackerCSRT::Params::write(FileStorage& fs) const
     fs << "background_ratio" << background_ratio;
     fs << "histogram_lr" << histogram_lr;
     fs << "psr_threshold" << psr_threshold;
+    fs << "correct_estimation_rate" << correct_estimation_rate;
+	
 }
 } /* namespace cv */
