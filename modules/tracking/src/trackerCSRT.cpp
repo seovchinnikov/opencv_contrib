@@ -471,6 +471,23 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
+    bool res_estimate = estimateOnly(image_, boundingBox);
+    if(!res_estimate){
+        return false;
+	}
+	
+    //update tracker
+    return updateOnly(image_);
+}
+
+bool TrackerCSRTImpl::estimateOnly(const Mat& image_, Rect2d& boundingBox)
+{
+    Mat image;
+    if(image_.channels() == 1)    //treat gray image as color image
+        cvtColor(image_, image, COLOR_GRAY2BGR);
+    else
+        image = image_;
+
     object_center = estimate_new_position(image);
     if (object_center.x < 0 && object_center.y < 0)
         return false;
@@ -481,7 +498,30 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
     bounding_box.width = current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
+	
+	boundingBox = bounding_box;
+	return true;
+}
 
+bool TrackerCSRTImpl::updateEstimation(const Mat& image_, Rect2d& boundingBox)
+{
+    object_center.x = boundingBox.x + boundingBox.width/2.
+    object_center.y = boundingBox.y + boundingBox.height/2.
+    current_scale_factor = 2.0f * (object_center.x - boundingBox.x) / original_target_size.width
+    if (object_center.x < 0 && object_center.y < 0)
+        return false;
+
+    return true;
+}
+
+
+bool TrackerCSRTImpl::updateOnly(const Mat& image_)
+{
+    Mat image;
+    if(image_.channels() == 1)    //treat gray image as color image
+        cvtColor(image_, image, COLOR_GRAY2BGR);
+    else
+        image = image_;
     //update tracker
     if(params.use_segmentation) {
         Mat hsv_img = bgr2hsv(image);
@@ -499,9 +539,9 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     }
     update_csr_filter(image, filter_mask);
     dsst.update(image, object_center);
-    boundingBox = bounding_box;
     return true;
 }
+
 
 // *********************************************************************
 // *                        Init API function                          *

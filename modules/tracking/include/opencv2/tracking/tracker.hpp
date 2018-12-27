@@ -1517,6 +1517,11 @@ public:
     float psr_threshold; //!< we lost the target, if the psr is lower than this.
   };
 
+  
+  CV_WRAP bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox );
+  CV_WRAP bool updateEstimation( InputArray image, Rect2d& boundingBox );
+  CV_WRAP bool updateOnly( InputArray image );
+  
   /** @brief Constructor
   @param parameters CSRT parameters TrackerCSRT::Params
   */
