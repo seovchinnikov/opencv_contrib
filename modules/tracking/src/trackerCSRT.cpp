@@ -31,7 +31,7 @@ public:
     void read(const FileNode& fn) CV_OVERRIDE;
     void write(FileStorage& fs) const CV_OVERRIDE;
     bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) CV_OVERRIDE;
-    bool updateEstimation( InputArray image, Rect2d& boundingBox) CV_OVERRIDE;
+    bool updateEstimation( InputArray image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut) CV_OVERRIDE;
     bool updateOnly( InputArray image) CV_OVERRIDE;
 
 protected:
@@ -53,7 +53,7 @@ protected:
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
     
     bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
-    bool updateEstimationImpl(const Mat &image, Rect2d& boundingBox);
+    bool updateEstimationImpl(const Mat &image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut);
     bool updateOnlyImpl(const Mat &image);
 private:
     bool check_mask_area(const Mat &mat, const double obj_area);
@@ -514,19 +514,28 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
     return true;
 }
 
-bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut)
 {
-    return updateEstimationImpl(image_.getMat(), boundingBox);
+    return updateEstimationImpl(image_.getMat(), boundingBoxIn, boundingBoxOut);
 }
 
-bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut)
 {
-    object_center.x = params.correct_estimation_rate*(boundingBox.x + boundingBox.width/2.) +
+    object_center.x = params.correct_estimation_rate*(boundingBoxIn.x + boundingBoxIn.width/2.) +
       (1-params.correct_estimation_rate)*object_center.x;
-    object_center.y = params.correct_estimation_rate*(boundingBox.y + boundingBox.height/2.) +
+    object_center.y = params.correct_estimation_rate*(boundingBoxIn.y + boundingBoxIn.height/2.) +
       (1-params.correct_estimation_rate)*object_center.y;
-    current_scale_factor = params.correct_estimation_rate*(2.0f * (object_center.x - boundingBox.x) / original_target_size.width) 
+
+    current_scale_factor = params.correct_estimation_rate*
+      (boundingBoxIn.width / original_target_size.width / 2. + boundingBoxIn.height / original_target_size.height / 2.)
       + (1-params.correct_estimation_rate)*current_scale_factor;
+
+    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
+    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.height = current_scale_factor * original_target_size.height;
+
+    boundingBoxOut = bounding_box;
     if (object_center.x < 0 && object_center.y < 0)
         return false;
 
