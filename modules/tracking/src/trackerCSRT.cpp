@@ -51,7 +51,10 @@ protected:
             const Size2f &template_size, const Size &target_size, float scale_factor);
     Point2f estimate_new_position(const Mat &image);
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
-
+    
+	bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
+    bool updateEstimationImpl(const Mat &image, Rect2d& boundingBox);
+    bool updateOnlyImpl(const Mat &image);
 private:
     bool check_mask_area(const Mat &mat, const double obj_area);
     float current_scale_factor;
@@ -474,16 +477,21 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
-    bool res_estimate = estimateOnly(image_, boundingBox);
+    bool res_estimate = estimateOnlyImpl(image_, boundingBox);
     if(!res_estimate){
         return false;
     }
 	
     //update tracker
-    return updateOnly(image_);
+    return updateOnlyImpl(image_);
 }
 
-bool TrackerCSRTImpl::estimateOnly(const Mat& image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::estimateOnly(InputArray image_, Rect2d& boundingBox)
+{
+    return estimateOnlyImpl(image_.getMat(), boundingBox);
+}
+
+bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
 {
     Mat image;
     if(image_.channels() == 1)    //treat gray image as color image
@@ -506,7 +514,11 @@ bool TrackerCSRTImpl::estimateOnly(const Mat& image_, Rect2d& boundingBox)
     return true;
 }
 
-bool TrackerCSRTImpl::updateEstimation(const Mat& image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBox)
+    return updateEstimationImpl(image_.getMat(), boundingBox);
+}
+
+bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBox)
 {
     object_center.x = boundingBox.x + boundingBox.width/2.
     object_center.y = boundingBox.y + boundingBox.height/2.
@@ -517,8 +529,11 @@ bool TrackerCSRTImpl::updateEstimation(const Mat& image_, Rect2d& boundingBox)
     return true;
 }
 
+bool TrackerCSRTImpl::updateOnly(InputArray image_)
+    return updateOnlyImpl(image_.getMat());
+}
 
-bool TrackerCSRTImpl::updateOnly(const Mat& image_)
+bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
 {
     Mat image;
     if(image_.channels() == 1)    //treat gray image as color image
