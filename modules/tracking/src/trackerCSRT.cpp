@@ -52,7 +52,7 @@ protected:
     Point2f estimate_new_position(const Mat &image);
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
     
-	bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
+    bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
     bool updateEstimationImpl(const Mat &image, Rect2d& boundingBox);
     bool updateOnlyImpl(const Mat &image);
 private:
@@ -477,13 +477,13 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
-    bool res_estimate = estimateOnlyImpl(image_, boundingBox);
+    bool res_estimate = estimateOnlyImpl(image, boundingBox);
     if(!res_estimate){
         return false;
     }
 	
     //update tracker
-    return updateOnlyImpl(image_);
+    return updateOnlyImpl(image);
 }
 
 bool TrackerCSRTImpl::estimateOnly(InputArray image_, Rect2d& boundingBox)
@@ -515,14 +515,15 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
 }
 
 bool TrackerCSRTImpl::updateEstimation(InputArray image_, Rect2d& boundingBox)
+{
     return updateEstimationImpl(image_.getMat(), boundingBox);
 }
 
 bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBox)
 {
-    object_center.x = boundingBox.x + boundingBox.width/2.
-    object_center.y = boundingBox.y + boundingBox.height/2.
-    current_scale_factor = 2.0f * (object_center.x - boundingBox.x) / original_target_size.width
+    object_center.x = boundingBox.x + boundingBox.width/2.;
+    object_center.y = boundingBox.y + boundingBox.height/2.;
+    current_scale_factor = 2.0f * (object_center.x - boundingBox.x) / original_target_size.width;
     if (object_center.x < 0 && object_center.y < 0)
         return false;
 
@@ -530,6 +531,7 @@ bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBo
 }
 
 bool TrackerCSRTImpl::updateOnly(InputArray image_)
+{
     return updateOnlyImpl(image_.getMat());
 }
 
@@ -540,6 +542,7 @@ bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
         cvtColor(image_, image, COLOR_GRAY2BGR);
     else
         image = image_;
+	
     //update tracker
     if(params.use_segmentation) {
         Mat hsv_img = bgr2hsv(image);
