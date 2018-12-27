@@ -30,6 +30,9 @@ public:
     TrackerCSRTImpl(const TrackerCSRT::Params &parameters = TrackerCSRT::Params());
     void read(const FileNode& fn) CV_OVERRIDE;
     void write(FileStorage& fs) const CV_OVERRIDE;
+    bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) CV_OVERRIDE;
+    bool updateEstimation( InputArray image, Rect2d& boundingBox) CV_OVERRIDE;
+    bool updateOnly( InputArray image) CV_OVERRIDE;
 
 protected:
     TrackerCSRT::Params params;
@@ -474,7 +477,7 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     bool res_estimate = estimateOnly(image_, boundingBox);
     if(!res_estimate){
         return false;
-	}
+    }
 	
     //update tracker
     return updateOnly(image_);
@@ -499,8 +502,8 @@ bool TrackerCSRTImpl::estimateOnly(const Mat& image_, Rect2d& boundingBox)
     bounding_box.width = current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
 	
-	boundingBox = bounding_box;
-	return true;
+    boundingBox = bounding_box;
+    return true;
 }
 
 bool TrackerCSRTImpl::updateEstimation(const Mat& image_, Rect2d& boundingBox)
