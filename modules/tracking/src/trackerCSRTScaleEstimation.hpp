@@ -16,6 +16,7 @@ public:
     ~DSST();
     void update(const Mat &image, const Point2f objectCenter);
     float getScale(const Mat &image, const Point2f objecCenter);
+    float current_scale_factor;
 private:
     Mat get_scale_features(Mat img, Point2f pos, Size2f base_target_sz, float current_scale,
             std::vector<float> &scale_factors, Mat scale_window, Size scale_model_sz);
@@ -30,7 +31,6 @@ private:
     float scale_sigma;
     float min_scale_factor;
     float max_scale_factor;
-    float current_scale_factor;
     int scales_count;
     float scale_step;
     float max_model_area;
