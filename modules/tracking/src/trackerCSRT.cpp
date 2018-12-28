@@ -529,6 +529,7 @@ bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBo
     current_scale_factor = params.correct_estimation_rate*
       (boundingBoxIn.width / original_target_size.width / 2. + boundingBoxIn.height / original_target_size.height / 2.)
       + (1-params.correct_estimation_rate)*current_scale_factor;
+    dsst.current_scale_factor = current_scale_factor;
 
     bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
