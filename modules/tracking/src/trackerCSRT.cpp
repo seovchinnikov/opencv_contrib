@@ -33,6 +33,7 @@ public:
     bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) CV_OVERRIDE;
     bool updateEstimation( InputArray image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut) CV_OVERRIDE;
     bool updateOnly( InputArray image) CV_OVERRIDE;
+    void updateCenterAndScale(float dx, float dy, float dscale) CV_OVERRIDE;
 
 protected:
     TrackerCSRT::Params params;
@@ -574,6 +575,19 @@ bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
     update_csr_filter(image, filter_mask);
     dsst.update(image, object_center);
     return true;
+}
+
+void TrackerCSRTImpl::updateCenterAndScale(float dx, float dy, float dscale) {
+    object_center.x += dx;
+    object_center.y += dy;
+
+    current_scale_factor *= dscale;
+    dsst.current_scale_factor = current_scale_factor;
+
+    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
+    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.height = current_scale_factor * original_target_size.height;
 }
 
 
