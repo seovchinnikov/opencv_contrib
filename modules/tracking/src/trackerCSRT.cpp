@@ -578,8 +578,8 @@ bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
 }
 
 void TrackerCSRTImpl::updateCenterAndScale(float dx, float dy, float dscale) {
-    object_center.x = object_center.x*dscale + dx*dscale;
-    object_center.y = object_center.y*dscale + dy*dscale;
+    object_center.x += dx;
+    object_center.y += dy;
 
     current_scale_factor *= dscale;
     dsst.current_scale_factor = current_scale_factor;
