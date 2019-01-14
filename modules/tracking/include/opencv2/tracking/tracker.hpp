@@ -1520,7 +1520,7 @@ public:
   };
 
   
-  virtual CV_WRAP bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) = 0;
+  virtual CV_WRAP bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox, InputArray mask) = 0;
   virtual CV_WRAP bool updateEstimation( InputArray image, Rect2d& boundingBoxIn, CV_OUT Rect2d& boundingBoxOut) = 0;
   virtual CV_WRAP bool updateOnly( InputArray image) = 0;
   virtual CV_WRAP void updateCenterAndScale(float dx, float dy, float dscale) = 0;

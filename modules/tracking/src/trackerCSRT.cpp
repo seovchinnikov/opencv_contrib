@@ -3,11 +3,10 @@
 // of this distribution and at http://opencv.org/license.html.
 
 #include "precomp.hpp"
-
 #include "trackerCSRTSegmentation.hpp"
 #include "trackerCSRTUtils.hpp"
 #include "trackerCSRTScaleEstimation.hpp"
-
+#include <opencv2/highgui.hpp>
 namespace cv
 {
 /**
@@ -30,7 +29,7 @@ public:
     TrackerCSRTImpl(const TrackerCSRT::Params &parameters = TrackerCSRT::Params());
     void read(const FileNode& fn) CV_OVERRIDE;
     void write(FileStorage& fs) const CV_OVERRIDE;
-    bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox) CV_OVERRIDE;
+    bool estimateOnly( InputArray image, CV_OUT Rect2d& boundingBox, InputArray mask) CV_OVERRIDE;
     bool updateEstimation( InputArray image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut) CV_OVERRIDE;
     bool updateOnly( InputArray image) CV_OVERRIDE;
     void updateCenterAndScale(float dx, float dy, float dscale) CV_OVERRIDE;
@@ -46,14 +45,14 @@ protected:
     void extract_histograms(const Mat &image, cv::Rect region, Histogram &hf, Histogram &hb);
     std::vector<Mat> create_csr_filter(const std::vector<cv::Mat>
             img_features, const cv::Mat Y, const cv::Mat P);
-    Mat calculate_response(const Mat &image, const std::vector<Mat> filter);
+    Mat calculate_response(const Mat &image, const std::vector<Mat> filter, const Mat &mask);
     Mat get_location_prior(const Rect roi, const Size2f target_size, const Size img_sz);
     Mat segment_region(const Mat &image, const Point2f &object_center,
             const Size2f &template_size, const Size &target_size, float scale_factor);
-    Point2f estimate_new_position(const Mat &image);
+    Point2f estimate_new_position(const Mat &image, const Mat &mask);
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
     
-    bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox);
+    bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox, const Mat &mask);
     bool updateEstimationImpl(const Mat &image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut);
     bool updateOnlyImpl(const Mat &image);
 private:
@@ -121,12 +120,15 @@ bool TrackerCSRTImpl::check_mask_area(const Mat &mat, const double obj_area)
     return true;
 }
 
-Mat TrackerCSRTImpl::calculate_response(const Mat &image, const std::vector<Mat> filter)
+Mat TrackerCSRTImpl::calculate_response(const Mat &image, const std::vector<Mat> filter, const Mat &mask)
 {
     Mat patch = get_subwindow(image, object_center, cvFloor(current_scale_factor * template_size.width),
         cvFloor(current_scale_factor * template_size.height));
-    resize(patch, patch, rescaled_template_size, 0, 0, INTER_CUBIC);
+    Mat mask_patch = get_subwindow(mask, object_center, cvFloor(current_scale_factor * template_size.width),
+        cvFloor(current_scale_factor * template_size.height));
 
+
+    resize(patch, patch, rescaled_template_size, 0, 0, INTER_CUBIC);
     std::vector<Mat> ftrs = get_features(patch, yf.size());
     std::vector<Mat> Ffeatures = fourier_transform_features(ftrs);
     Mat resp, res;
@@ -148,6 +150,22 @@ Mat TrackerCSRTImpl::calculate_response(const Mat &image, const std::vector<Mat>
         }
         idft(res, res, DFT_SCALE | DFT_REAL_OUTPUT);
     }
+
+    Mat mask_small;
+    resize(mask_patch, mask_small, res.size(), 0, 0, INTER_CUBIC);
+    mask_small.convertTo(mask_small, CV_32F);
+    
+    cv::Mat top_left = mask_small(cv::Range(0, mask_small.rows / 2 ), cv::Range(0, mask_small.cols / 2 ));
+    cv::Mat top_right  = mask_small(cv::Range(0, mask_small.rows / 2 ), cv::Range(mask_small.cols / 2, mask_small.cols));
+    cv::Mat bottom_left = mask_small(cv::Range(mask_small.rows / 2, mask_small.rows), cv::Range(0, mask_small.cols / 2));
+    cv::Mat bottom_right = mask_small(cv::Range(mask_small.rows / 2, mask_small.rows), cv::Range(mask_small.cols / 2, mask_small.cols));
+    
+    Mat row0, row1, res_mask;
+    hconcat(bottom_right, bottom_left, row0);
+    hconcat(top_right, top_left, row1);
+    vconcat(row0, row1, res_mask);
+
+    res = res.mul(res_mask);
     return res;
 }
 
@@ -431,11 +449,10 @@ void TrackerCSRTImpl::update_histograms(const Mat &image, const Rect &region)
     std::vector<double>().swap(hb_vect);
 }
 
-Point2f TrackerCSRTImpl::estimate_new_position(const Mat &image)
+Point2f TrackerCSRTImpl::estimate_new_position(const Mat &image, const Mat &mask)
 {
 
-    Mat resp = calculate_response(image, csr_filter);
-
+    Mat resp = calculate_response(image, csr_filter, mask);
     double max_val;
     Point max_loc;
     minMaxLoc(resp, NULL, &max_val, NULL, &max_loc);
@@ -445,12 +462,16 @@ Point2f TrackerCSRTImpl::estimate_new_position(const Mat &image)
     // take into account also subpixel accuracy
     float col = ((float) max_loc.x) + subpixel_peak(resp, "horizontal", max_loc);
     float row = ((float) max_loc.y) + subpixel_peak(resp, "vertical", max_loc);
+
+
     if(row + 1 > (float)resp.rows / 2.0f) {
         row = row - resp.rows;
     }
     if(col + 1 > (float)resp.cols / 2.0f) {
         col = col - resp.cols;
     }
+
+
     // calculate x and y displacements
     Point2f new_center = object_center + Point2f(current_scale_factor * (1.0f / rescale_ratio) *cell_size*(col),
             current_scale_factor * (1.0f / rescale_ratio) *cell_size*(row));
@@ -478,7 +499,8 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
-    bool res_estimate = estimateOnlyImpl(image, boundingBox);
+    Mat mask = Mat::ones(image.size(), CV_32FC1);
+    bool res_estimate = estimateOnlyImpl(image, boundingBox, mask);
     if(!res_estimate){
         return false;
     }
@@ -487,12 +509,12 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     return updateOnlyImpl(image);
 }
 
-bool TrackerCSRTImpl::estimateOnly(InputArray image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::estimateOnly(InputArray image_, Rect2d& boundingBox, InputArray mask)
 {
-    return estimateOnlyImpl(image_.getMat(), boundingBox);
+    return estimateOnlyImpl(image_.getMat(), boundingBox, mask.getMat());
 }
 
-bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
+bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox, const Mat& mask)
 {
     Mat image;
     if(image_.channels() == 1)    //treat gray image as color image
@@ -500,7 +522,8 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
     else
         image = image_;
 
-    object_center = estimate_new_position(image);
+   
+    object_center = estimate_new_position(image, mask);
     if (object_center.x < 0 && object_center.y < 0)
         return false;
 
@@ -512,6 +535,8 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox)
     bounding_box.height = current_scale_factor * original_target_size.height;
 	
     boundingBox = bounding_box;
+
+
     return true;
 }
 
