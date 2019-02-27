@@ -522,11 +522,12 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox, c
     else
         image = image_;
 
-   
-    object_center = estimate_new_position(image, mask);
-    if (object_center.x < 0 && object_center.y < 0)
+    Point2f object_center_new;
+    object_center_new = estimate_new_position(image, mask);
+    if (object_center_new.x < 0 && object_center_new.y < 0)
         return false;
-
+    
+    object_center = object_center_new;
     current_scale_factor = dsst.getScale(image, object_center);
     //update bouding_box according to new scale and location
     bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
