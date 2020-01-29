@@ -6,7 +6,7 @@
 #include "trackerCSRTSegmentation.hpp"
 #include "trackerCSRTUtils.hpp"
 #include "trackerCSRTScaleEstimation.hpp"
-#include <opencv2/highgui.hpp>
+
 namespace cv
 {
 /**
