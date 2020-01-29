@@ -181,7 +181,7 @@ struct Application : public OgreBites::ApplicationContext, public OgreBites::Inp
     int flags;
 
     Application(const Ogre::String& _title, const Size& sz, int _flags)
-        : OgreBites::ApplicationContext("ovis", false), sceneMgr(NULL), title(_title), w(sz.width),
+        : OgreBites::ApplicationContext("ovis"), sceneMgr(NULL), title(_title), w(sz.width),
           h(sz.height), key_pressed(-1), flags(_flags)
     {
         if(utils::getConfigurationParameterBool("OPENCV_OVIS_VERBOSE_LOG", false))
@@ -227,7 +227,8 @@ struct Application : public OgreBites::ApplicationContext, public OgreBites::Inp
         if (flags & SCENE_AA)
             miscParams["FSAA"] = "4";
 
-        miscParams["vsync"] = "true";
+        miscParams["vsync"] = Ogre::StringConverter::toString(
+            !utils::getConfigurationParameterBool("OPENCV_OVIS_NOVSYNC", false));
 
         OgreBites::NativeWindowPair ret =
             OgreBites::ApplicationContext::createWindow(_name, _w, _h, miscParams);
@@ -286,10 +287,10 @@ public:
     {
         if (!app->sceneMgr)
         {
-            flags |= SCENE_SEPERATE;
+            flags |= SCENE_SEPARATE;
         }
 
-        if (flags & SCENE_SEPERATE)
+        if (flags & SCENE_SEPARATE)
         {
             sceneMgr = root->createSceneManager("DefaultSceneManager", title);
             RTShader::ShaderGenerator& shadergen = RTShader::ShaderGenerator::getSingleton();
@@ -346,7 +347,7 @@ public:
 
     ~WindowSceneImpl()
     {
-        if (flags & SCENE_SEPERATE)
+        if (flags & SCENE_SEPARATE)
         {
             TextureManager& texMgr =  TextureManager::getSingleton();
 
@@ -362,7 +363,7 @@ public:
             }
         }
 
-        if(_app->sceneMgr == sceneMgr && (flags & SCENE_SEPERATE))
+        if(_app->sceneMgr == sceneMgr && (flags & SCENE_SEPARATE))
         {
             // this is the root window owning the context
             CV_Assert(_app->numWindows() == 1 && "the first OVIS window must be deleted last");
@@ -603,7 +604,7 @@ public:
         node.setScale(value[0], value[1], value[2]);
     }
 
-    void getEntityProperty(const String& name, int prop, OutputArray value)
+    void getEntityProperty(const String& name, int prop, OutputArray value) CV_OVERRIDE
     {
         SceneNode& node = _getSceneNode(sceneMgr, name);
         switch(prop)

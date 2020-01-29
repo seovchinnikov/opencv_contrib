@@ -18,8 +18,8 @@ namespace ovis {
 
 enum SceneSettings
 {
-    /// the window will use a seperate scene. The scene will be shared otherwise.
-    SCENE_SEPERATE = 1,
+    /// the window will use a separate scene. The scene will be shared otherwise.
+    SCENE_SEPARATE = 1,
     /// allow the user to control the camera.
     SCENE_INTERACTIVE = 2,
     /// draw coordinate system crosses for debugging
@@ -248,6 +248,11 @@ CV_EXPORTS_W void addResourceLocation(const String& path);
  * @param title window title
  * @param size size of the window
  * @param flags a combination of @ref SceneSettings
+ *
+ * Furthermore, the behavior is controlled by the following environment variables
+ * - OPENCV_OVIS_VERBOSE_LOG: print all of OGRE log output
+ * - OPENCV_OVIS_RENDERSYSTEM: the name of the OGRE RenderSystem to use
+ * - OPENCV_OVIS_NOVSYNC: disable VSYNC for all windows
  */
 CV_EXPORTS_W Ptr<WindowScene> createWindow(const String& title, const Size& size,
                                            int flags = SCENE_INTERACTIVE | SCENE_AA);
