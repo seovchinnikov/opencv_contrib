@@ -23,6 +23,7 @@ public:
         Mat scale_window,
         Size scale_model_sz,
         int col_len,
+        float dynamic_size_ratio,
         Mat &result)
     {
         this->img = img;
@@ -33,12 +34,13 @@ public:
         this->scale_window = scale_window;
         this->scale_model_sz = scale_model_sz;
         this->col_len = col_len;
+        this->dynamic_size_ratio = dynamic_size_ratio;
         this->result = result;
     }
     virtual void operator ()(const Range& range) const CV_OVERRIDE
     {
         for (int s = range.start; s < range.end; s++) {
-            Size patch_sz = Size(static_cast<int>(current_scale * scale_factors[s] * base_target_sz.width),
+            Size patch_sz = Size(static_cast<int>(dynamic_size_ratio * current_scale * scale_factors[s] * base_target_sz.width),
                     static_cast<int>(current_scale * scale_factors[s] * base_target_sz.height));
             Mat img_patch = get_subwindow(img, pos, patch_sz.width, patch_sz.height);
             img_patch.convertTo(img_patch, CV_32FC3);
@@ -67,6 +69,7 @@ private:
     Size scale_model_sz;
     int col_len;
     Mat result;
+    float dynamic_size_ratio;
 };
 
 
@@ -77,9 +80,10 @@ DSST::DSST(const Mat &image,
         float scaleStep,
         float maxModelArea,
         float sigmaFactor,
-        float scaleLearnRate):
+        float scaleLearnRate,
+        float dynamicSizeRatio):
     scales_count(numberOfScales), scale_step(scaleStep), max_model_area(maxModelArea),
-    sigma_factor(sigmaFactor), learn_rate(scaleLearnRate)
+    sigma_factor(sigmaFactor), learn_rate(scaleLearnRate), dynamic_size_ratio(dynamicSizeRatio)
 {
     original_targ_sz = bounding_box.size();
     Point2f object_center = Point2f(bounding_box.x + original_targ_sz.width / 2,
@@ -145,7 +149,7 @@ Mat DSST::get_scale_features(
 {
     Mat result;
     int col_len = 0;
-    Size patch_sz = Size(cvFloor(current_scale * scale_factors[0] * base_target_sz.width),
+    Size patch_sz = Size(cvFloor(dynamic_size_ratio * current_scale * scale_factors[0] * base_target_sz.width),
             cvFloor(current_scale * scale_factors[0] * base_target_sz.height));
     Mat img_patch = get_subwindow(img, pos, patch_sz.width, patch_sz.height);
     img_patch.convertTo(img_patch, CV_32FC3);
@@ -161,7 +165,7 @@ Mat DSST::get_scale_features(
     }
 
     ParallelGetScaleFeatures parallelGetScaleFeatures(img, pos, base_target_sz,
-            current_scale, scale_factors, scale_window, scale_model_sz, col_len, result);
+            current_scale, scale_factors, scale_window, scale_model_sz, col_len, dynamic_size_ratio, result);
     parallel_for_(Range(1, static_cast<int>(scale_factors.size())), parallelGetScaleFeatures);
     return result;
 }

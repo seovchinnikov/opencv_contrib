@@ -51,13 +51,14 @@ protected:
             const Size2f &template_size, const Size &target_size, float scale_factor);
     Point2f estimate_new_position(const Mat &image, const Mat &mask);
     std::vector<Mat> get_features(const Mat &patch, const Size2i &feature_size);
-    
+
     bool estimateOnlyImpl(const Mat &image, Rect2d& boundingBox, const Mat &mask);
     bool updateEstimationImpl(const Mat &image, Rect2d& boundingBoxIn, Rect2d& boundingBoxOut);
     bool updateOnlyImpl(const Mat &image);
 private:
     bool check_mask_area(const Mat &mat, const double obj_area);
     float current_scale_factor;
+    float dynamic_size_ratio;
     Mat window;
     Mat yf;
     Rect2f bounding_box;
@@ -154,12 +155,12 @@ Mat TrackerCSRTImpl::calculate_response(const Mat &image, const std::vector<Mat>
     Mat mask_small;
     resize(mask_patch, mask_small, res.size(), 0, 0, INTER_CUBIC);
     mask_small.convertTo(mask_small, CV_32F);
-    
+
     cv::Mat top_left = mask_small(cv::Range(0, mask_small.rows / 2 ), cv::Range(0, mask_small.cols / 2 ));
     cv::Mat top_right  = mask_small(cv::Range(0, mask_small.rows / 2 ), cv::Range(mask_small.cols / 2, mask_small.cols));
     cv::Mat bottom_left = mask_small(cv::Range(mask_small.rows / 2, mask_small.rows), cv::Range(0, mask_small.cols / 2));
     cv::Mat bottom_right = mask_small(cv::Range(mask_small.rows / 2, mask_small.rows), cv::Range(mask_small.cols / 2, mask_small.cols));
-    
+
     Mat row0, row1, res_mask;
     hconcat(bottom_right, bottom_left, row0);
     hconcat(top_right, top_left, row1);
@@ -366,7 +367,7 @@ Mat TrackerCSRTImpl::segment_region(
     Rect valid_pixels;
     Mat patch = get_subwindow(image, object_center, cvFloor(scale_factor * template_size.width),
         cvFloor(scale_factor * template_size.height), &valid_pixels);
-    Size2f scaled_target = Size2f(target_size.width * scale_factor,
+    Size2f scaled_target = Size2f(target_size.width * scale_factor * dynamic_size_ratio,
             target_size.height * scale_factor);
     Mat fg_prior = get_location_prior(
             Rect(0,0, patch.size().width, patch.size().height),
@@ -504,7 +505,7 @@ bool TrackerCSRTImpl::updateImpl(const Mat& image_, Rect2d& boundingBox)
     if(!res_estimate){
         return false;
     }
-	
+
     //update tracker
     return updateOnlyImpl(image);
 }
@@ -526,15 +527,15 @@ bool TrackerCSRTImpl::estimateOnlyImpl(const Mat& image_, Rect2d& boundingBox, c
     object_center_new = estimate_new_position(image, mask);
     if (object_center_new.x < 0 && object_center_new.y < 0)
         return false;
-    
+
     object_center = object_center_new;
     current_scale_factor = dsst.getScale(image, object_center);
     //update bouding_box according to new scale and location
-    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.x = object_center.x - dynamic_size_ratio * current_scale_factor * original_target_size.width / 2.0f;
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
-    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.width = dynamic_size_ratio * current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
-	
+
     boundingBox = bounding_box;
 
 
@@ -553,14 +554,16 @@ bool TrackerCSRTImpl::updateEstimationImpl(const Mat& image_, Rect2d& boundingBo
     object_center.y = params.correct_estimation_rate*(boundingBoxIn.y + boundingBoxIn.height/2.) +
       (1-params.correct_estimation_rate)*object_center.y;
 
-    current_scale_factor = params.correct_estimation_rate*
-      (boundingBoxIn.width / original_target_size.width / 2. + boundingBoxIn.height / original_target_size.height / 2.)
-      + (1-params.correct_estimation_rate)*current_scale_factor;
+    dynamic_size_ratio = params.correct_estimation_rate * boundingBoxIn.width / boundingBoxIn.height /
+            (original_target_size.width / original_target_size.height) + (1 - params.correct_estimation_rate) * dynamic_size_ratio;
+    current_scale_factor = params.correct_estimation_rate * (boundingBoxIn.height / original_target_size.height) +
+            (1-params.correct_estimation_rate)*current_scale_factor;
     dsst.current_scale_factor = current_scale_factor;
+    dsst.dynamic_size_ratio = dynamic_size_ratio;
 
-    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.x = object_center.x - dynamic_size_ratio * current_scale_factor * original_target_size.width / 2.0f;
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
-    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.width = dynamic_size_ratio * current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
 
     boundingBoxOut = bounding_box;
@@ -582,7 +585,7 @@ bool TrackerCSRTImpl::updateOnlyImpl(const Mat& image_)
         cvtColor(image_, image, COLOR_GRAY2BGR);
     else
         image = image_;
-	
+
     //update tracker
     if(params.use_segmentation) {
         Mat hsv_img = bgr2hsv(image);
@@ -610,9 +613,9 @@ void TrackerCSRTImpl::updateCenterAndScale(float dx, float dy, float dscale) {
     current_scale_factor *= dscale;
     dsst.current_scale_factor = current_scale_factor;
 
-    bounding_box.x = object_center.x - current_scale_factor * original_target_size.width / 2.0f;
+    bounding_box.x = object_center.x - dynamic_size_ratio * current_scale_factor * original_target_size.width / 2.0f;
     bounding_box.y = object_center.y - current_scale_factor * original_target_size.height / 2.0f;
-    bounding_box.width = current_scale_factor * original_target_size.width;
+    bounding_box.width = dynamic_size_ratio * current_scale_factor * original_target_size.width;
     bounding_box.height = current_scale_factor * original_target_size.height;
 }
 
@@ -634,6 +637,7 @@ bool TrackerCSRTImpl::initImpl(const Mat& image_, const Rect2d& boundingBox)
     cell_size = cvFloor(std::min(4.0, std::max(1.0, static_cast<double>(
         cvCeil((bounding_box.width * bounding_box.height)/400.0)))));
     original_target_size = Size(bounding_box.size());
+    dynamic_size_ratio = 1;
 
     template_size.width = static_cast<float>(cvFloor(original_target_size.width + params.padding *
             sqrt(original_target_size.width * original_target_size.height)));
@@ -728,7 +732,7 @@ bool TrackerCSRTImpl::initImpl(const Mat& image_, const Rect2d& boundingBox)
 
     //initialize scale search
     dsst = DSST(image, bounding_box, template_size, params.number_of_scales, params.scale_step,
-            params.scale_model_max_area, params.scale_sigma_factor, params.scale_lr);
+            params.scale_model_max_area, params.scale_sigma_factor, params.scale_lr, dynamic_size_ratio);
 
     model=Ptr<TrackerCSRTModel>(new TrackerCSRTModel(params));
     isInit = true;
@@ -859,6 +863,6 @@ void TrackerCSRT::Params::write(FileStorage& fs) const
     fs << "histogram_lr" << histogram_lr;
     fs << "psr_threshold" << psr_threshold;
     fs << "correct_estimation_rate" << correct_estimation_rate;
-	
+
 }
 } /* namespace cv */

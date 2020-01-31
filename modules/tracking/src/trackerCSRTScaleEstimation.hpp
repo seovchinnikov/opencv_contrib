@@ -12,11 +12,12 @@ class DSST {
 public:
     DSST() {};
     DSST(const Mat &image, Rect2f bounding_box, Size2f template_size, int numberOfScales,
-            float scaleStep, float maxModelArea, float sigmaFactor, float scaleLearnRate);
+            float scaleStep, float maxModelArea, float sigmaFactor, float scaleLearnRate, float dynamic_size_ratio);
     ~DSST();
     void update(const Mat &image, const Point2f objectCenter);
     float getScale(const Mat &image, const Point2f objecCenter);
     float current_scale_factor;
+    float dynamic_size_ratio;
 private:
     Mat get_scale_features(Mat img, Point2f pos, Size2f base_target_sz, float current_scale,
             std::vector<float> &scale_factors, Mat scale_window, Size scale_model_sz);
